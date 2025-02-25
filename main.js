@@ -48,15 +48,19 @@ async function sendTelegramMessage(message) {
   }
 }
 
-const scripts = [
-  { name: "Uniswap", path: "./modul/uniswap.js" },
-  { name: "Rubic Swap", path: "./modul/rubic.js" },
-  { name: "Magma Staking", path: "./modul/magma.js" },
-  { name: "Izumi Swap", path: "./modul/izumi.js" },
-  { name: "Kitsu Staking", path: "./modul/kitsu.js" },
-  { name: "aPriori Staking", path: "./modul/apriori.js" },
-  { name: "Auto Send", path: "./modul/send.js" },
-];
+ const scripts = [
+    { name: "Deploy Kontrak", path: "./modul/deploy.mjs" },
+    { name: "Uniswap", path: "./modul/uniswap.js" },
+    { name: "Rubic Swap", path: "./modul/rubic.js" },
+    { name: "Bean Swap", path: "./modul/bean.js" },
+    { name: "Magma Staking", path: "./modul/magma.js" },
+    { name: "Izumi Swap", path: "./modul/izumi.js" },
+    { name: "aPriori Staking", path: "./modul/apriori.js" },
+    { name: "Bebob Swap", path: "./modul/bebop.js" },
+    { name: "Monorail", path: "./modul/mono.js" },
+    { name: "Kitsu", path: "./modul/kitsu.js" },
+    { name: "AutoSend", path: "./modul/AutoSend.js" },
+  ];
 
 async function runScript(script) {
   console.log(`\n✅ Running ${script.name}...`);

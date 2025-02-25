@@ -1,9 +1,12 @@
 const prompts = require("prompts");
+require("colors");
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const { spawn } = require("child_process");
 const displayHeader = require("./src/banner.js");
+
 displayHeader();
 
 console.log("List Modul AUTO\n");
-
 console.log(`⏩ Uniswap`.red);
 console.log(`⏩ Rubic Swap`.red);
 console.log(`⏩ Magma Staking`.red);
@@ -12,6 +15,36 @@ console.log(`⏩ Kitsu Staking`.red);
 console.log(`⏩ aPriori Staking`.red);
 console.log(`⏩ Auto Send`.red);
 console.log("");
+
+// Replace with your Telegram Bot Token and Chat ID
+const TELEGRAM_BOT_TOKEN = '5264213507:AAESDDORGTgny2qPNhZ5O89H8jVZ9BtoF2c';
+const TELEGRAM_CHAT_ID = '903018274';
+
+// Function to send Telegram messages
+async function sendTelegramMessage(message) {
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  const payload = {
+    chat_id: TELEGRAM_CHAT_ID,
+    text: message
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await response.json();
+    if (!data.ok) {
+      console.error(`❌ Telegram Error: ${data.description}`);
+    } else {
+      console.log("📬 Telegram notification sent.");
+    }
+  } catch (error) {
+    console.error(`❌ Failed to send Telegram message: ${error.message}`);
+  }
+}
 
 const scripts = [
   { name: "Uniswap", path: "./modul/uniswap.js" },
@@ -23,23 +56,40 @@ const scripts = [
   { name: "Auto Send", path: "./modul/send.js" },
 ];
 
-const { spawn } = require("child_process");
-
 async function runScript(script) {
   console.log(`\n✅ Running ${script.name}...`);
+  await sendTelegramMessage(`🚀 Starting ${script.name}...`);
 
   return new Promise((resolve, reject) => {
     const process = spawn("node", [script.path]);
 
-    process.stdout.on("data", (data) => console.log(data.toString()));
-    process.stderr.on("data", (data) => console.error(data.toString()));
+    // Capture stdout and send to Telegram
+    process.stdout.on("data", async (data) => {
+      const output = data.toString();
+      console.log(output);
 
-    process.on("close", (code) => {
+      // Send each TXN or important line to Telegram
+      if (output.includes("Swap") || output.includes("TXN")) {
+        await sendTelegramMessage(`🔄 ${script.name} Output:\n${output}`);
+      }
+    });
+
+    // Capture stderr for errors
+    process.stderr.on("data", async (data) => {
+      const error = data.toString();
+      console.error(error);
+      await sendTelegramMessage(`❌ Error in ${script.name}:\n${error}`);
+    });
+
+    // On script completion
+    process.on("close", async (code) => {
       if (code === 0) {
-        console.log(`? Finished ${script.name}`);
+        console.log(`✅ Finished ${script.name}`);
+        await sendTelegramMessage(`✅ Finished ${script.name}`);
         resolve();
       } else {
         console.error(`❌ Error in ${script.name} (Exit code: ${code})`);
+        await sendTelegramMessage(`❌ Error in ${script.name} (Exit code: ${code})`);
         reject(new Error(`Script ${script.name} failed`));
       }
     });
@@ -52,6 +102,7 @@ async function runScriptsSequentially(loopCount) {
       await runScript(script);
     }
   }
+  await sendTelegramMessage(`🎉 All scripts executed ${loopCount} time(s)!`);
 }
 
 async function main() {
@@ -64,11 +115,13 @@ async function main() {
     });
 
     const loopCount = response.loopCount || 1;
-    console.log(`\n✅✅ Executing all scripts ${loopCount} times...\n`);
-    
+    console.log(`\n🚀 Executing all scripts ${loopCount} times...\n`);
+    await sendTelegramMessage(`🚀 Starting execution of all scripts (${loopCount} times)...`);
+
     await runScriptsSequentially(loopCount);
 
     console.log("\n✅✅ All scripts have been executed\n");
+    await sendTelegramMessage("✅✅ All scripts have been executed successfully!");
   }
 }
 

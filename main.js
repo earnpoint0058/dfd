@@ -6,19 +6,17 @@ const displayHeader = require("./src/banner.js");
 
 displayHeader();
 
- const scripts = [
-    { name: "Uniswap", path: "./modul/uniswap.js" },
-    { name: "Deploy Kontrak", path: "./modul/deploy.mjs" },
-    { name: "Rubic Swap", path: "./modul/rubic.js" },
-    { name: "Bean Swap", path: "./modul/bean.js" },
-    { name: "Magma Staking", path: "./modul/magma.js" },
-    { name: "Izumi Swap", path: "./modul/izumi.js" },
-    { name: "aPriori Staking", path: "./modul/apriori.js" },
-    { name: "Bebob Swap", path: "./modul/bebop.js" },
-    { name: "Monorail", path: "./modul/mono.js" },
-    { name: "Kitsu", path: "./modul/kitsu.js" },
-    { name: "AutoSend", path: "./modul/AutoSend.js" },
-  ];
+ console.log("List Modul AUTO\n");
+console.log(`⏩ bebop`.red);
+console.log(`⏩ Uniswap`.red);
+console.log(`⏩ bean`.red);
+console.log(`⏩ Rubic Swap`.red);
+console.log(`⏩ Magma Staking`.red);
+console.log(`⏩ Izumi Swap`.red);
+console.log(`⏩ Kitsu Staking`.red);
+console.log(`⏩ aPriori Staking`.red);
+console.log(`⏩ Auto Send`.red);
+console.log("");
 
 // Replace with your Telegram Bot Token and Chat ID
 const TELEGRAM_BOT_TOKEN = '5264213507:AAESDDORGTgny2qPNhZ5O89H8jVZ9BtoF2c';

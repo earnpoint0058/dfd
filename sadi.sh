@@ -31,7 +31,124 @@ print_blue() {
 }
 
 # ============================================
-# WALLET MANAGEMENT FUNCTIONS (NEW ADDED)
+# PIXABAY API SETUP (NEW ADDED)
+# ============================================
+
+# Pixabay API Key File
+PIXABAY_API_FILE="$HOME/.pixabay_api_key"
+
+# Function to setup Pixabay API
+setup_pixabay_api() {
+    print_blue "🔑 Pixabay API Setup"
+    echo ""
+    print_yellow "To get Pixabay API Key:"
+    echo "1. Go to: https://pixabay.com/api/docs/"
+    echo "2. Sign up for free account"
+    echo "3. Get your API key from dashboard"
+    echo ""
+    
+    if [ -f "$PIXABAY_API_FILE" ]; then
+        current_key=$(cat "$PIXABAY_API_FILE")
+        print_green "Current API Key: ${current_key:0:8}...${current_key: -4}"
+        read -p "Do you want to change it? (y/n): " change
+        if [[ "$change" != "y" ]]; then
+            return
+        fi
+    fi
+    
+    read -p "Enter your Pixabay API Key: " api_key
+    if [ -n "$api_key" ]; then
+        echo "$api_key" > "$PIXABAY_API_FILE"
+        chmod 600 "$PIXABAY_API_FILE"
+        print_green "✅ Pixabay API key saved!"
+    else
+        print_red "❌ No API key entered"
+    fi
+}
+
+# Function to get Pixabay API key
+get_pixabay_api() {
+    if [ -f "$PIXABAY_API_FILE" ]; then
+        cat "$PIXABAY_API_FILE"
+    else
+        echo ""
+    fi
+}
+
+# Function to check Pixabay API
+check_pixabay_api() {
+    if [ -f "$PIXABAY_API_FILE" ]; then
+        key=$(get_pixabay_api)
+        if [ -n "$key" ]; then
+            print_green "✅ Pixabay API: Configured"
+            return 0
+        fi
+    fi
+    print_red "❌ Pixabay API: Not configured"
+    return 1
+}
+
+# Function to download from Pixabay
+download_from_pixabay() {
+    print_blue "📸 Download from Pixabay"
+    
+    # Check API
+    if ! check_pixabay_api; then
+        print_red "Please setup Pixabay API first (Option 12)"
+        return 1
+    fi
+    
+    API_KEY=$(get_pixabay_api)
+    
+    read -p "Search query: " query
+    read -p "Number of images (1-5): " count
+    count=${count:-1}
+    
+    if [ "$count" -gt 5 ]; then
+        count=5
+    fi
+    
+    read -p "Save as (default: pixabay_image.jpg): " filename
+    filename=${filename:-"pixabay_image.jpg"}
+    
+    print_blue "Searching Pixabay for '$query'..."
+    
+    # Simple download using curl
+    url="https://pixabay.com/api/?key=$API_KEY&q=${query// /+}&per_page=$count&image_type=photo"
+    
+    # Get image URL
+    response=$(curl -s "$url")
+    
+    if echo "$response" | grep -q '"totalHits":0'; then
+        print_red "❌ No images found"
+        return 1
+    fi
+    
+    # Extract first image URL
+    image_url=$(echo "$response" | grep -o '"largeImageURL":"[^"]*"' | head -1 | cut -d'"' -f4)
+    
+    if [ -z "$image_url" ]; then
+        print_red "❌ Could not get image URL"
+        return 1
+    fi
+    
+    print_blue "Downloading: $image_url"
+    
+    # Download image
+    curl -s -o "$filename" "$image_url"
+    
+    if [ -f "$filename" ] && [ -s "$filename" ]; then
+        file_size=$(stat -c%s "$filename")
+        print_green "✅ Downloaded: $filename ($((file_size/1024)) KB)"
+        echo "$filename"
+    else
+        print_red "❌ Download failed"
+        return 1
+    fi
+}
+
+# ============================================
+# WALLET MANAGEMENT FUNCTIONS
 # ============================================
 
 # Wallet Directory
@@ -53,7 +170,7 @@ generate_new_wallet() {
     # Generate private key (32 bytes = 64 hex chars)
     PRIVATE_KEY=$(openssl rand -hex 32 2>/dev/null || echo "d4b6f7b8e9a0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6")
     
-    # Simple public key generation (for demo)
+    # Simple public key generation
     PUBLIC_KEY=$(echo -n "$PRIVATE_KEY" | sha256sum | cut -d' ' -f1)
     ADDRESS="0x$(echo -n "$PUBLIC_KEY" | tail -c 40)"
     
@@ -255,90 +372,12 @@ wallet_menu() {
 }
 
 # ============================================
-# ORIGINAL SHELBY + PIXABAY FUNCTIONS
+# SHELBY FUNCTIONS
 # ============================================
-
-# Function to install Python dependencies
-install_python_deps() {
-    print_blue "[1/6] Installing Python dependencies..."
-    
-    if ! command_exists python3; then
-        print_blue "Installing Python3..."
-        sudo apt install python3 python3-pip -y
-    fi
-    
-    pip3 install requests --quiet
-    
-    print_green "✓ Python dependencies installed"
-}
-
-# Function to create Pixabay downloader script
-create_pixabay_downloader() {
-    print_blue "[2/6] Setting up Pixabay downloader..."
-    
-    PIXABAY_DOWNLOADER_PY="$HOME/pixabay_downloader.py"
-    
-    cat << 'EOF' > "$PIXABAY_DOWNLOADER_PY"
-import requests
-import os
-import sys
-
-def download_pixabay_image(query, filename="pixabay_image.jpg"):
-    """Simple Pixabay image downloader"""
-    print(f"Searching Pixabay for: {query}")
-    
-    # Note: You need a Pixabay API key
-    # Get from: https://pixabay.com/api/docs/
-    
-    # This is a placeholder - add your API key
-    API_KEY = "YOUR_PIXABAY_API_KEY"
-    
-    if API_KEY == "YOUR_PIXABAY_API_KEY":
-        print("⚠️ Please add your Pixabay API key to the script")
-        print("Get one from: https://pixabay.com/api/docs/")
-        return None
-    
-    url = f"https://pixabay.com/api/?key={API_KEY}&q={query}&image_type=photo"
-    
-    try:
-        response = requests.get(url)
-        data = response.json()
-        
-        if data['totalHits'] > 0:
-            image_url = data['hits'][0]['largeImageURL']
-            print(f"Downloading: {image_url}")
-            
-            img_data = requests.get(image_url).content
-            with open(filename, 'wb') as f:
-                f.write(img_data)
-            
-            print(f"✅ Image saved: {filename}")
-            return filename
-        else:
-            print("❌ No images found")
-            return None
-            
-    except Exception as e:
-        print(f"❌ Error: {e}")
-        return None
-
-if __name__ == "__main__":
-    if len(sys.argv) > 1:
-        query = sys.argv[1]
-        filename = sys.argv[2] if len(sys.argv) > 2 else f"pixabay_{query}.jpg"
-        download_pixabay_image(query, filename)
-    else:
-        print("Usage: python3 pixabay_downloader.py <search_query> [filename]")
-EOF
-    
-    chmod +x "$PIXABAY_DOWNLOADER_PY"
-    print_green "✓ Pixabay downloader created"
-    print_yellow "Note: Add your API key to the script"
-}
 
 # Function to install Node.js and npm
 install_node_npm() {
-    print_blue "[3/6] Installing Node.js and npm..."
+    print_blue "Installing Node.js and npm..."
     sudo apt update -y
     sudo apt install nodejs npm -y
     
@@ -352,7 +391,7 @@ install_node_npm() {
 
 # Function to install Shelby CLI
 install_shelby_cli() {
-    print_blue "[4/6] Installing Shelby CLI..."
+    print_blue "Installing Shelby CLI..."
     npm i -g @shelby-protocol/cli
     
     if command_exists shelby; then
@@ -365,7 +404,7 @@ install_shelby_cli() {
 
 # Function to initialize Shelby
 initialize_shelby() {
-    print_blue "[5/6] Initializing Shelby CLI..."
+    print_blue "Initializing Shelby CLI..."
     
     print_yellow "📋 You need Shelby API key from https://geomi.dev/"
     
@@ -391,7 +430,7 @@ initialize_shelby() {
 
 # Function to setup funding
 setup_funding() {
-    print_blue "[6/6] Setting up account funding..."
+    print_blue "Setting up account funding..."
     
     if command_exists shelby; then
         FAUCET_URL=$(shelby faucet --no-open 2>/dev/null || echo "")
@@ -399,6 +438,10 @@ setup_funding() {
         if [ -n "$FAUCET_URL" ]; then
             print_green "🔗 Faucet URL: $FAUCET_URL"
             print_yellow "Open in browser and fund your account"
+            echo ""
+            print_yellow "You need BOTH:"
+            print_yellow "1. APT tokens (for gas fees)"
+            print_yellow "2. ShelbyUSD tokens (for uploads/downloads)"
         else
             print_yellow "Run: shelby faucet --no-open"
         fi
@@ -408,87 +451,308 @@ setup_funding() {
 # Function for Pixabay to Shelby upload
 pixabay_to_shelby_upload() {
     echo ""
-    print_green "========================================="
+    print_green "═══════════════════════════════════════"
     print_green "     PIXABAY → SHELBY UPLOAD"
-    print_green "========================================="
+    print_green "═══════════════════════════════════════"
     
-    echo "1. Upload from Pixabay (needs API key)"
-    echo "2. Upload local file"
-    echo "3. Back"
-    read -p "Choose (1-3): " choice
+    # Check Pixabay API
+    if ! check_pixabay_api; then
+        print_red "Please setup Pixabay API first (Option 12)"
+        return
+    fi
     
-    case $choice in
-        1)
-            print_yellow "⚠️ First add Pixabay API key to ~/pixabay_downloader.py"
-            read -p "Search query: " query
-            
-            # Download image
-            python3 ~/pixabay_downloader.py "$query" "download.jpg"
-            
-            if [ -f "download.jpg" ]; then
-                read -p "Upload to Shelby? (y/n): " upload
-                if [[ "$upload" == "y" ]]; then
-                    shelby upload ./download.jpg "pixabay/$query.jpg" -e "in 30 days" --assume-yes
-                    rm -f ./download.jpg
+    # Check Shelby
+    if ! command_exists shelby; then
+        print_red "Shelby CLI not installed. Install first."
+        return
+    fi
+    
+    while true; do
+        echo ""
+        echo "1. Search & Download from Pixabay"
+        echo "2. Upload downloaded image to Shelby"
+        echo "3. Download & Upload automatically"
+        echo "4. Back to Main Menu"
+        echo ""
+        
+        read -p "Choose (1-4): " choice
+        
+        case $choice in
+            1)
+                # Download only
+                download_from_pixabay
+                ;;
+            2)
+                # Upload existing file
+                echo "Available images:"
+                ls -1 *.jpg *.jpeg *.png 2>/dev/null | nl
+                
+                read -p "Select image number or filename: " img_input
+                if [[ "$img_input" =~ ^[0-9]+$ ]]; then
+                    filename=$(ls -1 *.jpg *.jpeg *.png 2>/dev/null | sed -n "${img_input}p")
+                else
+                    filename="$img_input"
                 fi
-            fi
-            ;;
-        2)
-            echo "Files in current directory:"
-            ls -la
-            read -p "Filename: " filename
-            if [ -f "$filename" ]; then
-                shelby upload "./$filename" "uploads/$filename" -e "in 30 days" --assume-yes
-            else
-                print_red "File not found"
-            fi
-            ;;
-    esac
+                
+                if [ -f "$filename" ]; then
+                    read -p "Destination path (e.g., pixabay/photo.jpg): " dest_path
+                    read -p "Expiration (default: in 30 days): " expiration
+                    expiration=${expiration:-"in 30 days"}
+                    
+                    print_blue "Uploading to Shelby..."
+                    shelby upload "./$filename" "$dest_path" -e "$expiration" --assume-yes
+                    
+                    if [ $? -eq 0 ]; then
+                        print_green "✅ Upload successful!"
+                        read -p "Delete local file? (y/n): " delete
+                        if [[ "$delete" == "y" ]]; then
+                            rm -f "$filename"
+                        fi
+                    fi
+                else
+                    print_red "File not found: $filename"
+                fi
+                ;;
+            3)
+                # Auto download & upload
+                read -p "Search query: " query
+                filename="pixabay_${query}_$(date +%Y%m%d_%H%M%S).jpg"
+                
+                # Download
+                print_blue "Downloading from Pixabay..."
+                downloaded_file=$(download_from_pixabay)
+                
+                if [ -n "$downloaded_file" ] && [ -f "$downloaded_file" ]; then
+                    # Upload
+                    dest_path="pixabay/${query}_$(date +%Y%m%d).jpg"
+                    expiration="in 30 days"
+                    
+                    print_blue "Uploading to Shelby..."
+                    shelby upload "./$downloaded_file" "$dest_path" -e "$expiration" --assume-yes
+                    
+                    if [ $? -eq 0 ]; then
+                        print_green "✅ Download & Upload successful!"
+                        rm -f "$downloaded_file"
+                    else
+                        print_red "❌ Upload failed. File saved: $downloaded_file"
+                    fi
+                fi
+                ;;
+            4)
+                return
+                ;;
+            *)
+                print_red "Invalid choice"
+                ;;
+        esac
+        
+        read -p "Press Enter to continue..." dummy
+    done
 }
 
-# One-click demo upload
+# One-click demo upload (FIXED)
 one_click_demo() {
     print_green "🚀 One-Click Demo Upload"
+    echo ""
+    
+    # Check Shelby
+    if ! command_exists shelby; then
+        print_red "❌ Shelby CLI not installed"
+        print_yellow "Install with Option 2 first"
+        return
+    fi
+    
+    # Check if initialized
+    if [ ! -f "$HOME/.shelby/config.yaml" ]; then
+        print_red "❌ Shelby not initialized"
+        print_yellow "Run Option 3 to setup API key"
+        return
+    fi
+    
+    # Check balance
+    print_blue "Checking account balance..."
+    balance_output=$(shelby account balance 2>&1)
+    
+    if echo "$balance_output" | grep -q "ShelbyUSD"; then
+        print_green "✅ Account has balance"
+    else
+        print_red "❌ Account needs funding"
+        print_yellow "Run Option 4 to get test tokens"
+        return
+    fi
+    
+    # Create test file
+    echo "This is a Shelby CLI demo upload" > shelby_demo.txt
+    echo "Uploaded at: $(date)" >> shelby_demo.txt
+    echo "One-click demo from automated script" >> shelby_demo.txt
+    
+    print_blue "Uploading demo file..."
+    
+    # Upload with different expiration options
+    EXPIRATIONS=("tomorrow" "in 2 days" "next Friday" "in 7 days")
+    EXPIRATION=${EXPIRATIONS[$RANDOM % ${#EXPIRATIONS[@]}]}
+    
+    shelby upload ./shelby_demo.txt "demo/shelby_demo_$(date +%Y%m%d).txt" -e "$EXPIRATION" --assume-yes
+    
+    if [ $? -eq 0 ]; then
+        print_green "✅ Demo upload successful!"
+        print_green "📁 File: demo/shelby_demo_$(date +%Y%m%d).txt"
+        print_green "⏰ Expires: $EXPIRATION"
+        
+        # Show uploaded files
+        print_blue "📋 Your uploaded files:"
+        shelby account blobs | grep -i demo || echo "No demo files found"
+        
+        # Clean up
+        rm -f ./shelby_demo.txt
+    else
+        print_red "❌ Upload failed"
+        print_yellow "Possible issues:"
+        print_yellow "1. Insufficient ShelbyUSD balance"
+        print_yellow "2. Network connection"
+        print_yellow "3. API key expired"
+        
+        # Keep the file for debugging
+        print_yellow "Debug file saved: shelby_demo.txt"
+    fi
+}
+
+# Upload Local File
+upload_local_file() {
+    print_blue "📤 Upload Local File"
     
     if ! command_exists shelby; then
         print_red "Install Shelby CLI first"
         return
     fi
     
-    # Create test file
-    echo "Hello Shelby! Demo upload at $(date)" > demo_shelby.txt
+    echo "Current directory:"
+    ls -la
     
-    # Upload
-    shelby upload ./demo_shelby.txt "demo/test.txt" -e "tomorrow" --assume-yes 2>/dev/null
+    read -p "Enter filename to upload: " filename
+    
+    if [ ! -f "$filename" ]; then
+        print_red "File not found: $filename"
+        return
+    fi
+    
+    read -p "Destination path in Shelby (e.g., myfiles/doc.txt): " dest_path
+    read -p "Expiration (e.g., tomorrow, in 30 days): " expiration
+    expiration=${expiration:-"in 30 days"}
+    
+    print_blue "Uploading..."
+    shelby upload "./$filename" "$dest_path" -e "$expiration" --assume-yes
     
     if [ $? -eq 0 ]; then
-        print_green "✅ Demo upload successful!"
-        rm -f demo_shelby.txt
+        print_green "✅ Upload successful!"
     else
-        print_red "❌ Upload failed. Check balance and API key"
+        print_red "❌ Upload failed"
     fi
+}
+
+# Complete Automated Setup
+complete_setup() {
+    print_green "🚀 Starting Complete Setup..."
+    echo ""
+    
+    # 1. Update system
+    print_blue "Step 1: Updating system..."
+    sudo apt update -y
+    
+    # 2. Install Node.js
+    install_node_npm
+    
+    # 3. Install Shelby CLI
+    install_shelby_cli
+    
+    # 4. Install Python for Pixabay
+    print_blue "Step 4: Installing Python..."
+    sudo apt install python3 python3-pip curl -y
+    
+    print_green "✅ Complete setup finished!"
+    echo ""
+    print_yellow "Next steps:"
+    print_yellow "1. Run Option 3: Setup Shelby API key"
+    print_yellow "2. Run Option 12: Setup Pixabay API key"
+    print_yellow "3. Run Option 4: Fund your account"
+    print_yellow "4. Run Option 7: Test upload"
 }
 
 # Quick commands reference
 show_commands() {
-    print_green "📋 QUICK COMMANDS:"
+    print_green "📋 QUICK COMMANDS REFERENCE"
     echo ""
-    echo "Shelby Commands:"
-    echo "  shelby init                    # Initialize"
-    echo "  shelby account balance         # Check balance"
-    echo "  shelby account blobs           # List files"
+    
+    print_blue "Shelby Commands:"
+    echo "  shelby init                    # Initialize with API key"
+    echo "  shelby account balance         # Check token balance"
+    echo "  shelby account blobs           # List uploaded files"
     echo "  shelby upload <file> <dest> -e 'tomorrow' --assume-yes"
+    echo "  shelby download <blob> <file>  # Download file"
     echo "  shelby faucet --no-open        # Get test tokens"
+    echo "  shelby account list            # List accounts"
+    echo "  shelby context list            # List networks"
     echo ""
-    echo "Wallet Commands (this script):"
-    echo "  Select option 5 from main menu"
+    
+    print_blue "Pixabay Commands (via script):"
+    echo "  Option 5: Pixabay → Shelby upload"
+    echo "  Option 12: Setup Pixabay API"
     echo ""
-    echo "Pixabay Download:"
-    echo "  python3 ~/pixabay_downloader.py nature myphoto.jpg"
+    
+    print_blue "Wallet Commands:"
+    echo "  Option 8: Wallet management"
+    echo ""
+    
+    print_blue "File Operations:"
+    echo "  Option 6: Upload local file"
+    echo "  Option 7: One-click demo"
+    echo "  Option 11: List uploaded files"
+}
+
+# Check system status
+check_status() {
+    print_blue "🔍 System Status Check"
+    echo ""
+    
+    # Check Shelby
+    if command_exists shelby; then
+        print_green "✅ Shelby CLI: Installed"
+        VERSION=$(shelby --version 2>/dev/null || echo "Unknown")
+        print_green "   Version: $VERSION"
+    else
+        print_red "❌ Shelby CLI: Not installed"
+    fi
+    
+    # Check Node.js
+    if command_exists node; then
+        print_green "✅ Node.js: Installed"
+    else
+        print_red "❌ Node.js: Not installed"
+    fi
+    
+    # Check Shelby config
+    if [ -f "$HOME/.shelby/config.yaml" ]; then
+        print_green "✅ Shelby Config: Found"
+    else
+        print_red "❌ Shelby Config: Not found"
+    fi
+    
+    # Check Pixabay API
+    check_pixabay_api
+    
+    # Check wallets
+    if [ -d "$WALLET_DIR" ] && [ -n "$(ls -A "$WALLET_DIR" 2>/dev/null)" ]; then
+        count=$(ls -1 "$WALLET_DIR"/*.json 2>/dev/null | wc -l)
+        print_green "✅ Wallets: $count found"
+    else
+        print_yellow "⚠️ Wallets: None created"
+    fi
+    
+    echo ""
 }
 
 # ============================================
-# MAIN MENU (ORIGINAL + WALLET)
+# MAIN MENU (UPDATED)
 # ============================================
 
 main_menu() {
@@ -499,66 +763,50 @@ main_menu() {
         print_green "      SHELBY CLI COMPLETE ALL-IN-ONE"
         print_green "═══════════════════════════════════════════════"
         echo ""
-        echo "📦 INSTALLATION:"
+        
+        # Show status
+        check_status
+        echo ""
+        
+        print_blue "📦 INSTALLATION:"
         echo "  1. Complete Automated Setup (Everything)"
         echo "  2. Install Shelby CLI only"
-        echo "  3. Setup API Keys"
+        echo "  3. Setup Shelby API Key"
         echo "  4. Fund Account (Get Test Tokens)"
         echo ""
-        echo "📤 UPLOAD FILES:"
+        
+        print_blue "📤 UPLOAD FILES:"
         echo "  5. Pixabay → Shelby Upload"
         echo "  6. Upload Local File"
-        echo "  7. One-Click Demo"
+        echo "  7. One-Click Demo Upload"
         echo ""
-        echo "🔐 WALLET MANAGEMENT (NEW):"
+        
+        print_blue "🔐 WALLET MANAGEMENT:"
         echo "  8. Manage Wallets (Create/Import/List)"
         echo ""
-        echo "🔧 TOOLS & INFO:"
+        
+        print_blue "🛠️  TOOLS & INFO:"
         echo "  9. Quick Commands Reference"
         echo "  10. Check Balance"
         echo "  11. List Uploaded Files"
+        echo "  12. Setup Pixabay API Key"  # NEW OPTION
+        echo "  13. System Status"
         echo "  0. Exit"
         echo ""
         
-        read -p "Enter choice (0-11): " choice
+        read -p "Enter choice (0-13): " choice
         
         case $choice in
-            1)
-                print_green "🚀 Starting complete installation..."
-                install_python_deps
-                create_pixabay_downloader
-                install_node_npm
-                install_shelby_cli
-                print_green "✓ Installation complete!"
-                ;;
-            2)
-                install_node_npm
-                install_shelby_cli
-                ;;
-            3)
-                initialize_shelby
-                ;;
-            4)
-                setup_funding
-                ;;
-            5)
-                pixabay_to_shelby_upload
-                ;;
-            6)
-                read -p "Enter filename: " filename
-                read -p "Destination path: " dest
-                shelby upload "./$filename" "$dest" -e "in 30 days" --assume-yes
-                ;;
-            7)
-                one_click_demo
-                ;;
-            8)
-                wallet_menu  # NEW WALLET MENU
-                ;;
-            9)
-                show_commands
-                ;;
-            10)
+            1) complete_setup ;;
+            2) install_shelby_cli ;;
+            3) initialize_shelby ;;
+            4) setup_funding ;;
+            5) pixabay_to_shelby_upload ;;
+            6) upload_local_file ;;
+            7) one_click_demo ;;
+            8) wallet_menu ;;
+            9) show_commands ;;
+            10) 
                 if command_exists shelby; then
                     shelby account balance
                 else
@@ -572,8 +820,10 @@ main_menu() {
                     print_red "Shelby not installed"
                 fi
                 ;;
+            12) setup_pixabay_api ;;  # NEW: Pixabay API setup
+            13) check_status ;;
             0)
-                print_green "👋 Goodbye!"
+                print_green "👋 Goodbye! Happy uploading!"
                 exit 0
                 ;;
             *)
